@@ -464,6 +464,74 @@ head(df_fix)</code></pre>
 ## 5 A           treat    37 5               8
 ## 6 A           treat    37 6               9</code></pre>
 </div>
+<div id="前処理１余談パイプ演算子の力" class="section level3">
+<h3>前処理１(余談)：パイプ演算子<code>%&gt;%</code>の力</h3>
+<p><code>dplyr</code>によるデータ整形をするとき、パイプ演算子<code>%&gt;%</code>が必須事項です。 また、この演算子を覚えて置くと、他の場面でも力を発揮してくれます。 ここで一度その使い方、利便性と注意したいことを整理しておきましょう。</p>
+<p>パイプ演算子は直前までの処理結果を次の関数に引き渡すものです。 例として、適当なデータセットを作り、各変数の記述統計を出力しましょう。</p>
+<pre class="r"><code>tibble(
+  num = 1:20,
+  genedr = factor(c(rep(&quot;male&quot;, 10), rep(&quot;female&quot;, 10)))
+) %&gt;% summary()</code></pre>
+<pre><code>##       num           genedr  
+##  Min.   : 1.00   female:10  
+##  1st Qu.: 5.75   male  :10  
+##  Median :10.50              
+##  Mean   :10.50              
+##  3rd Qu.:15.25              
+##  Max.   :20.00</code></pre>
+<p>この処理は以下と同じです。</p>
+<pre class="r"><code>no_pipe_df &lt;- tibble(
+  num = 1:20,
+  genedr = factor(c(rep(&quot;male&quot;, 10), rep(&quot;female&quot;, 10)))
+)
+summary(no_pipe_df)</code></pre>
+<pre><code>##       num           genedr  
+##  Min.   : 1.00   female:10  
+##  1st Qu.: 5.75   male  :10  
+##  Median :10.50              
+##  Mean   :10.50              
+##  3rd Qu.:15.25              
+##  Max.   :20.00</code></pre>
+<p>すなわち、<code>%&gt;%</code>の前にあるtibbleによるデータフレームの作成したもの（<code>no_pipe_df</code>）を次の関数の引数に入れるものです。</p>
+<p>もう少しコードを長くしてその恩恵を感じてみましょう。</p>
+<pre class="r"><code>tibble(
+    num = 1:20,
+    genedr = factor(c(rep(&quot;male&quot;, 10), rep(&quot;female&quot;, 10)))
+) %&gt;%
+dplyr::filter(num &gt; 12) %&gt;% 
+summary()</code></pre>
+<pre><code>##       num           genedr 
+##  Min.   :13.00   female:8  
+##  1st Qu.:14.75   male  :0  
+##  Median :16.50             
+##  Mean   :16.50             
+##  3rd Qu.:18.25             
+##  Max.   :20.00</code></pre>
+<p>この処理は以下と同じです。</p>
+<pre class="r"><code>no_pipe_df &lt;- tibble(
+  num = 1:20,
+  genedr = factor(c(rep(&quot;male&quot;, 10), rep(&quot;female&quot;, 10)))
+)
+no_pipe_df2 &lt;- dplyr::filter(no_pipe_df, num &gt; 12)
+summary(no_pipe_df2)</code></pre>
+<pre><code>##       num           genedr 
+##  Min.   :13.00   female:8  
+##  1st Qu.:14.75   male  :0  
+##  Median :16.50             
+##  Mean   :16.50             
+##  3rd Qu.:18.25             
+##  Max.   :20.00</code></pre>
+<p>この例におけるパイプ演算子の働きは以下の通りです</p>
+<ul>
+<li><code>dplyr::filter()</code>の前にある<code>%&gt;%</code>：tibbleで作成したデータフレーム（<code>no_pipe_df</code>）を、条件に一致する行だけを残す<code>dplyr::filter()</code>関数の引数に入れる</li>
+<li><code>summary()</code>の前にある<code>%&gt;%</code>：tibbleで作成したデータフレーム（<code>no_pipe_df</code>）から<code>dplyr::filter()</code>で特定の行のみを残したデータフレーム（<code>no_pipe_df2</code>）を<code>summary()</code>の引数に入れる</li>
+</ul>
+<p>これで「直前までの処理結果を次の関数に引き渡す」という意味が分かると思います。 そして、<code>%&gt;%</code>の恩恵がいくつかあるのが分かると思います。</p>
+<ul>
+<li>コードの可読性</li>
+<li>オブジェクトが大量にならない（大量のオブジェクトを作ると、何がどういう処理なのか分かりづらくなる）</li>
+</ul>
+</div>
 <div id="前処理２mutate" class="section level3">
 <h3>前処理２：<code>mutate</code></h3>
 <p>次に、分析のために既存の変数を適切に変換及び、新規の変数を作成します。 具体的に、以下の操作をします。</p>

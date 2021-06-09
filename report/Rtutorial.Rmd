@@ -146,6 +146,66 @@ df_fix <- df %>%
 head(df_fix)
 ```
 
+### 前処理１(余談)：パイプ演算子`%>%`の力
+
+`dplyr`によるデータ整形をするとき、パイプ演算子`%>%`が必須事項です。
+また、この演算子を覚えて置くと、他の場面でも力を発揮してくれます。
+ここで一度その使い方、利便性と注意したいことを整理しておきましょう。
+
+パイプ演算子は直前までの処理結果を次の関数に引き渡すものです。
+例として、適当なデータセットを作り、各変数の記述統計を出力しましょう。
+
+```{r pipe1}
+tibble(
+  num = 1:20,
+  genedr = factor(c(rep("male", 10), rep("female", 10)))
+) %>% summary()
+```
+
+この処理は以下と同じです。
+
+```{r no_pipe1}
+no_pipe_df <- tibble(
+  num = 1:20,
+  genedr = factor(c(rep("male", 10), rep("female", 10)))
+)
+summary(no_pipe_df)
+```
+
+すなわち、`%>%`の前にあるtibbleによるデータフレームの作成したもの（`no_pipe_df`）を次の関数の引数に入れるものです。
+
+もう少しコードを長くしてその恩恵を感じてみましょう。
+
+```{r pipe2}
+tibble(
+    num = 1:20,
+    genedr = factor(c(rep("male", 10), rep("female", 10)))
+) %>%
+dplyr::filter(num > 12) %>% 
+summary()
+```
+
+この処理は以下と同じです。
+
+```{r no_pipe2}
+no_pipe_df <- tibble(
+  num = 1:20,
+  genedr = factor(c(rep("male", 10), rep("female", 10)))
+)
+no_pipe_df2 <- dplyr::filter(no_pipe_df, num > 12)
+summary(no_pipe_df2)
+```
+
+この例におけるパイプ演算子の働きは以下の通りです
+
+- `dplyr::filter()`の前にある`%>%`：tibbleで作成したデータフレーム（`no_pipe_df`）を、条件に一致する行だけを残す`dplyr::filter()`関数の引数に入れる
+- `summary()`の前にある`%>%`：tibbleで作成したデータフレーム（`no_pipe_df`）から`dplyr::filter()`で特定の行のみを残したデータフレーム（`no_pipe_df2`）を`summary()`の引数に入れる
+
+これで「直前までの処理結果を次の関数に引き渡す」という意味が分かると思います。
+そして、`%>%`の恩恵がいくつかあるのが分かると思います。
+
+- コードの可読性
+- オブジェクトが大量にならない（大量のオブジェクトを作ると、何がどういう処理なのか分かりづらくなる）
 
 ### 前処理２：`mutate`
 
