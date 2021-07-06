@@ -1,0 +1,95 @@
+#' # 2章　データの前処理
+#'
+#' ## Example dataset: Gneezy and Rustichini (2000)
+#'
+#' ここで使用するデータセットは以下の研究論文に掲載されているデータを加藤がcsvに加工したものを使用します
+#'
+#' - Gneezy, Uri, and Aldo Rustichini. 2000. “A FINE IS A PRICE.” Journal of Legal Studies 29 (1): 1-17. 
+#'    - [[本文リンク](https://drive.google.com/file/d/1ywOEdZCKRP89_CSUWmg9vC2H9q3iiehx/view?usp=sharing)]
+
+#' ## パッケージの読み込み
+#'
+#' 私はパッケージの読み込みを`xfun`パッケージにある`pkg_attach2()`関数を使っています
+#' - この関数はインストールしていないパッケージに対して、インストールをした上で読み込んでくれます。結構便利。
+#+
+library(xfun)
+xfun::pkg_attach2("tidyverse")
+
+#' ## データの読み込み
+#'
+#' `tidyverse`にある`readr`というパッケージの`read_csv()`を使って、
+#' raw data（前処理をしていない生データ）を読み込みます。
+#+
+path <- "https://raw.githubusercontent.com/KatoPachi/Rtutorial/main/data/daycare_fine.csv"
+df <- readr::read_csv(path)
+
+#' ## データの確認
+#+
+head(df)
+
+#' ## 変数の説明
+#'
+#' - `care_center`：託児所ラベル
+#' - `treat`：罰金を導入した託児所(`treat`)かそうでない託児所(`control`)
+#' - `child`：託児所が預かっている子供の数
+#' - `week1:week20`：各週における遅れて迎えに来る両親の数
+
+#' ## 前処理１：wide型からlong型へ
+#'
+#' - raw dataの行単位（unit of observation・観測単位）は託児所レベルです。
+#'    - 託児所Aにおける観測値はweek1で遅れて迎えに来る両親の数、week2で遅れて迎えに来る両親の数、・・・といった感じ
+#'    - これでも分析することはできる
+#'    - 例：ある週における遅れて迎えに来る両親の数を託児所レベルで比較する
+#' - ある託児所の時間的な変化を知りたいので、データの行単位（観測単位）を託児所×weekレベルに変えます
+#'    - week1からweek20の変数列を一つの列にまとめる
+
+#' ## 前処理１：`pivot_longer()`
+#'
+#' データをwide型からlong型に変えるときの関数で、引数は以下のように与える
+#'
+#' - `values_to = "late_parent"`：複数の変数を一つにまとめた新しい変数名
+#' - `names_to = "week"`：どの変数から来た値なのかを識別するための新しい変数名
+#' - `names_prefix = "week"`
+#'    - これを指定しないと、week列には"week1", "week2", "week3"という文字列が入ります。
+#'    - しかしながら、"week"という文字列は明らかに不要な情報です。
+#'    - `names_prefix`を指定すると、指定した文字列以降をweek列に格納してくれます。
+#+
+df_fix <- df %>%
+  pivot_longer(
+    week1:week20,
+    names_to = "week", values_to = "late_parent",
+    names_prefix = "week")
+
+#' ## 前処理２：`mutate()`
+#'
+#' 分析のために既存の変数を適切に変換及び、新規の変数を作成します。
+#'
+#' - `week`の数値化：`as.numeric()`で数値に変換します
+#'    - `pivot_longer`の`names_to`で指定した新しい変数は文字列型で入ります
+#' - `week`の大区分化：実験期間は20週ですが、それは大きく3期間に分けることができます。それを示す新規変数`period`を作成します。
+#' - `treat`の数値化：`treat`ならば1を取るダミー変数に変数変換します
+#'    - もとの変数は`treat`と`control`の文字列で入っています
+#' - 遅れて来る親の割合を示す変数`p_late_parent`を新規に作成
+#'    - すべての両親が一人の子供を預けていると仮定すると、両親の数は子供の数と同じになるはずです
+#+
+df_fix <- df_fix %>%
+  mutate(
+    week = as.numeric(week),
+    treat = recode(treat, "treat" = 1, "control" = 0),
+    period = case_when(
+      week <= 4 ~ 1,
+      week <= 16 ~ 2,
+      TRUE ~ 3
+    ),
+    p_late_parent = late_parent / child
+  )
+
+#' ## 前処理後のデータを確認する
+#+
+head(df_fix)
+
+#' ## 前処理したデータをcsvファイルで保存する
+#'
+#' `readr`パッケージの`write_csv()`関数を用いて、データフレーム`df_fix`をcsvで保存する
+#+ eval = FALSE
+readr::write_csv(df_fix, file = "data/daycare_fine_shape.csv")
