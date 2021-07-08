@@ -1,10 +1,13 @@
+#' # 3章：{ggplot2}による可視化
 
+# /* パッケージとデータの読み込み
 library(xfun)
 xfun::pkg_attach2("tidyverse")
 
-# read shaped data
-# df_fix <- readr::read_csv("https://raw.githubusercontent.com/KatoPachi/Rtutorial/main/data/daycare_fine_shape.csv") # from github
-df_fix <- readr::read_csv("data/daycare_fine_shape.csv") 
+# path <- "https://raw.githubusercontent.com/KatoPachi/Rtutorial/main/data/daycare_fine_shape.csv"
+# df_fix <- readr::read_csv(path)
+df_fix <- readr::read_csv("data/daycare_fine_shape.csv")
+# */
 
 # summary of late parent by week in treated day-care center
 df_fix %>% 
