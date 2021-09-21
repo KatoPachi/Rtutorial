@@ -13,6 +13,7 @@
 library(xfun)
 xfun::pkg_attach2(c(
   "tidyverse", "rlang", "rlist",
+  "fixest",
   "kableExtra", "flextable", "officer", "modelsummary"
 ))
 ```
@@ -80,10 +81,12 @@ dt <- readr::read_csv("data/daycare_fine_shape.csv")
 ```
 
 
-トリートメントグループ$g$に属する託児所$i$の第$t$週における遅れて迎えに来る両親の数を$y_{igt}$とする。
-$y_i$は以下のような線形モデルで決まるとする。
+### ランダム化比較試験は何を推定しているのか？
 
-$$ y_{igt} = a_i + b_i d_{gt} + \delta_t + v_{igt} $$
+託児所$i$の第$t$週における遅れて迎えに来る両親の数を$y_{it}$とする。
+$y_{it}$は以下のような線形モデルで決まるとする。
+
+$$ y_{it} = a_i + b_i d_{it} + \delta_t + v_{it} $$
 
 ここで、$a_i$と$\delta_t$はそれぞれ託児所固定効果と時間固定効果である。
 託児所固定効果は時間に対して不変な託児所$i$特有の効果であり、
@@ -92,31 +95,199 @@ $d_{it}$は託児所$i$が第$t$週に罰金を導入していたら1を取る�
 $v_{it}$は誤差項であり、二つの固定効果とダミー変数で捉えきれないすべての影響を含む。
 
 我々は罰金導入時期にのみサンプルを限定する。
-よって、変数$d_{gt}$は時間に依存しない変数（すべての週で罰金を導入するかしないか）となるので、
-$d_{gt} = d_g$と書き直せる。
+よって、変数$d_{it}$は時間に依存しない変数（すべての週で罰金を導入するかしないか）となるので、
+$d_{it} = d_i$と書き直せる。
+また、$d_i$は時間に依存しない変数なので、託児所固定効果も推定できない。
 
-ここで、罰金を導入しないときの託児所$i$における第$t$週の遅れて迎えに来る両親の数を$y_{igt}(0)$とする。
-一方で、罰金を導入するときの託児所$i$における第$t$週の遅れて迎えに来る両親の数を$y_{igt}(1)$とする。
+ここで、罰金を導入しないときの託児所$i$における第$t$週の遅れて迎えに来る両親の数を$y_{it}(0)$とする。
+一方で、罰金を導入するときの託児所$i$における第$t$週の遅れて迎えに来る両親の数を$y_{it}(1)$とする。
 このとき、それぞれのアウトカムは以下のように得られる。
 
-$$ y_{igt}(0) = a_i + \delta_t + v_{igt} $$
-$$ y_{igt}(1) = a_i + b_i + \delta_t + v_{igt} $$
+$$ y_{it}(0) = a_i + \delta_t + v_{it} $$
+$$ y_{it}(1) = a_i + b_i + \delta_t + v_{it} $$
 
-よって、$b_i = y_{igt}(1) - y_{igt}(0)$となり、$b_i$は個別介入効果と呼ばれる。
-しかしながら、我々は$y_{igt}(1)$もしくは$y_{igt}(0)$のどちらか一方しか観察できないので、
+よって、$b_i = y_{it}(1) - y_{it}(0)$となり、$b_i$は個別介入効果と呼ばれる。
+しかしながら、我々は$y_{it}(1)$もしくは$y_{it}(0)$のどちらか一方しか観察できないので、
 個別介入効果を推定することができない（fundamental problem of policy evaluation）。
 
-しかしながら、我々は二群の平均値の差を推定することはできる。
-すなわち、
+そこで、個別介入効果$b_i$でなく、
+すべての託児所の平均効果$b$の推定を考える。
+これは平均介入効果（Average Treatment Effect, ATE）と呼ばれる。
+そのために、線型モデルを以下のように書き換える
+
+$$ y_{it} = a_i + b d_{it} + \delta_t + (v_{it} + (b_i - b) d_{it}) $$
+
+このモデルにおいて、OLS推定量$b$は二群の平均値の差を識別する。
 
 $$
-E(y_{igt}|d_{gt} = 1) - E(y_{igt}|d_{gt} = 0)
-= E(y_{igt}(1)|d_{gt} = 1) - E(y_{igt}(0) | d_{gt} = 0)
+E(\hat{b})
+= b +
+\{E(v_{it} | d_i = 1) - E(v_{it} | d_i = 0)\} +
+E(b_i - b | d_{it} = 1)
 $$
 
-これを書き直すと、
+第二項はselection biasであり、第三項はsoritng gainと呼ばれる。
+sorting gainは個人がトリートメント効果をある程度予想して、
+実際にトリートメントを受けるかどうかを決めるときに、
+生じる問題である（essential heterogeneityとも呼ばれる）。
 
-$$
-E(y_{igt}|d_{gt} = 1) - E(y_{igt}|d_{gt} = 0)
-= E(b_i | d_{gt} = 1) + \{E(v_{igt} | d_{gt} = 1) - E(v_{igt} | d_{gt} = 0)\}
-$$
+罰金の導入がランダムに決まるとき、selection biasとsorting gainは発生しない。
+このようなRCTの設定を用いた回帰分析は平均因果効果を識別できる。
+
+罰金を導入する権利がランダムに決まり、
+実際に導入するかどうかが託児所の意思決定によって決まるケースを考える。
+このとき、selection biasはないが、sorting gainは生じる可能性がある。
+このようなRCTの設定を用いた回帰分析は
+$b + E(b_i - b | d_{it} = 1) = E(b_i | d_{it} = 1)$
+を識別する。
+これは罰金を導入した託児所の平均因果効果
+（Average treatment effect on the treated, ATT）と呼ばれる。
+
+Gneezy and Rustichini (2002)のフィールド実験は
+罰金の導入の権利がランダムに決まるのではなく、
+実際の罰金の導入がランダムに決まる。
+よって、この研究のRCTの設定を用いた回帰分析はATEを識別する。
+
+### 因果効果を推定する
+
+{fixest}パッケージの`feols()`を用いて、
+固定効果モデル$ y_{it} = b_i d_i + \delta_t + v_{it} $を推定する。
+託児所固定効果は`care_center`で、時間固定効果は`week`である。
+
+遅れて迎えに来る両親の数をアウトカム変数$y_{it}$とするとき、
+罰金の導入は平均的に遅れて迎えに来る両親の数を7.215人増やした。
+
+
+
+```r
+mod <- list(
+  "(1)" = late ~ fine,
+  "(2)" = late ~ fine | week
+)
+
+mod %>%
+  purrr::map(~ fixest::feols(
+    ., data = subset(dt, period == 2)
+  )) %>%
+  modelsummary(
+    gof_omit = "R2|R2 Within|AIC|BIC|Log",
+    stars = c("*" = .1, "**" = .05, "***" = .01)
+  )
+```
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+ <thead>
+  <tr>
+   <th style="text-align:left;">   </th>
+   <th style="text-align:center;"> (1) </th>
+   <th style="text-align:center;"> (2) </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> (Intercept) </td>
+   <td style="text-align:center;"> 9.229*** </td>
+   <td style="text-align:center;">  </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;">  </td>
+   <td style="text-align:center;"> (0.886) </td>
+   <td style="text-align:center;">  </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> fine </td>
+   <td style="text-align:center;"> 7.215*** </td>
+   <td style="text-align:center;"> 7.215*** </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;box-shadow: 0px 1px">  </td>
+   <td style="text-align:center;box-shadow: 0px 1px"> (1.144) </td>
+   <td style="text-align:center;box-shadow: 0px 1px"> (1.130) </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Num.Obs. </td>
+   <td style="text-align:center;"> 120 </td>
+   <td style="text-align:center;"> 120 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Std. Errors </td>
+   <td style="text-align:center;"> Standard </td>
+   <td style="text-align:center;"> Clustered (week) </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FE: week </td>
+   <td style="text-align:center;">  </td>
+   <td style="text-align:center;"> X </td>
+  </tr>
+</tbody>
+</table>
+
+
+遅れて迎えに来る両親の比率をアウトカム変数として用いて、同様の分析を行った。
+結果として、罰金の導入は遅れて迎えに来る両親の割合を21.6%ポイント増やした。
+
+
+
+```r
+mod2 <- list(
+  "(1)" = rate_late ~ fine,
+  "(2)" = rate_late ~ fine | week
+)
+
+mod2 %>%
+  purrr::map(~ fixest::feols(
+    ., data = subset(dt, period == 2)
+  )) %>%
+  modelsummary(
+    gof_omit = "R2|R2 Within|AIC|BIC|Log",
+    stars = c("*" = .1, "**" = .05, "***" = .01)
+  )
+```
+
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+ <thead>
+  <tr>
+   <th style="text-align:left;">   </th>
+   <th style="text-align:center;"> (1) </th>
+   <th style="text-align:center;"> (2) </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;"> (Intercept) </td>
+   <td style="text-align:center;"> 0.276*** </td>
+   <td style="text-align:center;">  </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;">  </td>
+   <td style="text-align:center;"> (0.027) </td>
+   <td style="text-align:center;">  </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> fine </td>
+   <td style="text-align:center;"> 0.216*** </td>
+   <td style="text-align:center;"> 0.216*** </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;box-shadow: 0px 1px">  </td>
+   <td style="text-align:center;box-shadow: 0px 1px"> (0.035) </td>
+   <td style="text-align:center;box-shadow: 0px 1px"> (0.033) </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Num.Obs. </td>
+   <td style="text-align:center;"> 120 </td>
+   <td style="text-align:center;"> 120 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> Std. Errors </td>
+   <td style="text-align:center;"> Standard </td>
+   <td style="text-align:center;"> Clustered (week) </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;"> FE: week </td>
+   <td style="text-align:center;">  </td>
+   <td style="text-align:center;"> X </td>
+  </tr>
+</tbody>
+</table>
+
