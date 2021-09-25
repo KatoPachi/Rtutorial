@@ -1,0 +1,157 @@
+---
+title: Tutorial DID
+author: Hiroki Kato
+date: "`r format(Sys.time(), '%Y/%m/%d')`"
+output: powerpoint_presentation
+---
+
+```{r include = FALSE}
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE,
+  echo = FALSE,
+  cache = FALSE,
+  include = TRUE,
+  fig.width = 10
+)
+
+library(here)
+knitr::opts_knit$set(
+  root.dir = here::here()
+)
+
+options(
+  knitr.kable.NA = " ",
+  knitr.table.format = "html",
+  modelsummary_stars_note = FALSE
+)
+```
+
+```{r include = FALSE}
+se <- function(x, na.rm = FALSE) {
+  if (na.rm) {
+    x <- na.omit(x)
+  }
+  sqrt(var(x) / length(x))
+}
+
+ggtemp <- function(flip = FALSE,
+                   family = NULL,
+                   size = list(
+                     title = 13,
+                     text = 9,
+                     caption = 11
+                   ),
+                   legend_key_size = 1) {
+  my_theme <- theme_minimal(base_family = family) +
+    theme(
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.minor.y = element_blank(),
+      axis.text = element_text(
+        color = "black", size = size$text, family = family
+      ),
+      axis.title = element_text(size = size$title, family = family),
+      axis.ticks.length = unit(0.25, "cm"),
+      axis.ticks.x = element_line(),
+      axis.ticks.y = element_line(),
+      axis.line = element_line(),
+      legend.text = element_text(size = size$text, family = family),
+      legend.key.size = unit(legend_key_size, "cm"),
+      legend.title = ggplot2::element_text(size = size$title),
+      legend.position = "bottom",
+      plot.caption = ggplot2::element_text(size = size$caption)
+    )
+
+  if (flip) {
+    my_theme <- my_theme +
+      theme(
+        panel.grid.major.y = element_blank(),
+        panel.grid.major.x = element_line()
+      )
+  }
+
+  return(my_theme)
+}
+```
+
+```{r include = FALSE}
+library(xfun)
+xfun::pkg_attach2(c(
+  "tidyverse", "rlang", "rlist",
+  "kableExtra", "flextable", "officer", "modelsummary"
+))
+```
+
+## Example Dataset
+
+- Gneezy, Uri, and Aldo Rustichini. 2000. “A FINE IS A PRICE.” Journal of Legal Studies 29 (1): 1-17.
+  - [本文リンク](https://drive.google.com/file/d/1ywOEdZCKRP89_CSUWmg9vC2H9q3iiehx/view?usp=sharing)
+- イスラエルの託児所で実施したフィールド実験
+  - 遅れて迎えに来る両親に対する少額の罰金の効果を検証
+  - 実験に協力した私営託児所10校は20週に渡って、遅れて迎えに来る両親の数を記録した
+  - 無作為に抽出された託児所6校のみで第5週から第16週にかけて罰金を導入
+
+```{r}
+dt <- readr::read_csv(
+  "https://raw.githubusercontent.com/KatoPachi/Rtutorial/issue-did/data/daycare_fine_shape.csv"
+)
+```
+
+## データの可視化
+
+```{r}
+dt %>%
+  mutate(fine = factor(fine, labels = c("未導入", "導入"))) %>%
+  ggplot(aes(x = week, y = late, group = care_center)) +
+  geom_point(aes(color = fine)) +
+  geom_line(aes(color = fine)) +
+  geom_vline(aes(xintercept = 4.5), linetype = 3) +
+  geom_vline(aes(xintercept = 16.5), linetype = 3) +
+  scale_x_continuous(breaks = seq(1, 20, 1)) +
+  scale_color_manual(values = c("grey", "black")) +
+  labs(x = "実験週", y = "遅れて迎えに来る両親の数", color = "罰金") +
+  ggtemp()
+```
+
+
+## 反実仮想モデル
+
+$$ Y_{it} = \alpha_i + \beta_i D_{it} + \eta_t + \epsilon_{it} $$
+
+- 託児所$i$の第$t$週（$i = \text{A}, \ldots, \text{J}$; $t = 1, \ldots, 20$）における遅れて迎えにくる両親の数$Y_{it}$がどのように決まるかをモデル化
+- $\alpha_i$は個人固定効果で、$\lambda_t$は時間固定効果（後述）
+- $\epsilon_{it}$は2つの固定効果と$D_{it}$で説明できない要因（誤差項）
+  - $E(\epsilon_{it}) = 0$
+
+## 反実仮想の構築
+
+$$ Y_{it} = \alpha_i + \beta_i D_{it} + \eta_t + \epsilon_{it} $$
+
+- $D_{it}$は第$t$週に託児所$i$が罰金を導入したら1を取り、そうでなければ0となる（ダミー変数）
+- 反実仮想（counterfactuals）を構築する
+  - 託児所$i$が第$t$週に罰金を導入する世界では、$Y_{it}(1) = \alpha_i + \beta_i + \eta_t + \epsilon_{it}$
+  - 託児所$i$が第$t$週に罰金を導入しない世界では、$Y_{it}(0) = \alpha_i + \eta_t + \epsilon_{it}$
+- 罰金の効果は$Y_{it}(1) - Y_{it}(0) = \beta_i$と定義できる
+
+## 因果効果推定の根本問題
+
+- 託児所$i$の第$t$週のアウトカムとして、我々は$Y_{it}(1)$・$Y_{it}(0)$のどちらかしか観察できない
+  - 各託児所の罰金の効果$\beta_i$を推定することは不可能 $\rightarrow$ Synthetic control
+- 罰金の平均的な効果$E(\beta_i)$を推定することを目指す
+
+## ランダム化比較試験(RCT)
+
+- 罰金の導入は託児所の意思決定や性質と独立に決まる（ランダム化比較試験）
+  - 導入グループのアウトカムの平均と未導入グループのアウトカムの平均の差によって、罰金の平均的な効果$E(\beta_i)$を得られる
+- 罰金導入期間の第14週のデータを用いて、罰金の平均的な効果を推定する
+  - $t = 14$のデータ
+  - 罰金を導入した託児所はA-F、未導入の託児所はG-J
+
+## 2群の平均の差＝平均的な効果
+
+
+$$ E(Y_{i}|D_{i}) = E(\beta_i|D_{i})D_{i} + \eta + E(u_{i}|D_{i}) $$
+
+- 罰金導入の有無によってデータを条件づけたときのアウトカムの期待値
+- なお、$E(u_{i}|D_{i}) = E(\alpha_i + \epsilon_{i}|D_{i})$
